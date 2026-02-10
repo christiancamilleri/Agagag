@@ -1,5 +1,5 @@
 // netlify/functions/create-checkout.js
-const Stripe = require("stripe");
+import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -11,19 +11,19 @@ const PRICE_MAP = {
   IRRIGOLD_6: process.env.STRIPE_PRICE_IRRIGOLD_6,
 };
 
-exports.handler = async (event) => {
+export default async function handler(req, res) {
   try {
-    if (event.httpMethod !== "POST") {
-      return { statusCode: 405, body: "Method Not Allowed" };
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const { model, qty, notes, province } = JSON.parse(event.body || "{}");
+    const { model, qty, notes, province } = req.body || {};
     const quantity = Math.max(1, Math.min(10, parseInt(qty || 1, 10)));
 
     const price = PRICE_MAP[model];
-    if (!price) return { statusCode: 400, body: "Modello non valido" };
+    if (!price) return res.status(400).json({ error: "Modello non valido" });
 
-    const origin = event.headers.origin || `https://${event.headers.host}`;
+    const origin = req.headers.origin || `https://${req.headers.host}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -39,12 +39,8 @@ exports.handler = async (event) => {
       shipping_address_collection: { allowed_countries: ["IT"] },
     });
 
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: session.url }),
-    };
+    return res.status(200).json({ url: session.url });
   } catch (err) {
-    return { statusCode: 500, body: String(err?.message || err) };
+    return res.status(500).json({ error: err?.message || err });
   }
-};
+}
