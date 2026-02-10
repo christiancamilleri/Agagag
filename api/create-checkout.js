@@ -1,27 +1,35 @@
-// netlify/functions/create-checkout.js
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-const PRICE_MAP = {
-  IRRIGOLD_2: process.env.STRIPE_PRICE_IRRIGOLD_2,
-  IRRIGOLD_3: process.env.STRIPE_PRICE_IRRIGOLD_3,
-  IRRIGOLD_4: process.env.STRIPE_PRICE_IRRIGOLD_4,
-  IRRIGOLD_5: process.env.STRIPE_PRICE_IRRIGOLD_5,
-  IRRIGOLD_6: process.env.STRIPE_PRICE_IRRIGOLD_6,
-};
-
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+      return res.status(405).json({ error: "Method Not Allowed" });
     }
 
+    // Vercel NON fa il JSON parsing automatico con fetch GET → dobbiamo forzarlo
     const { model, qty, notes, province } = req.body || {};
+
+    if (!model) {
+      return res.status(400).json({ error: "Model is missing from request" });
+    }
+
     const quantity = Math.max(1, Math.min(10, parseInt(qty || 1, 10)));
 
+    const PRICE_MAP = {
+      IRRIGOLD_2: process.env.STRIPE_PRICE_IRRIGOLD_2,
+      IRRIGOLD_3: process.env.STRIPE_PRICE_IRRIGOLD_3,
+      IRRIGOLD_4: process.env.STRIPE_PRICE_IRRIGOLD_4,
+      IRRIGOLD_5: process.env.STRIPE_PRICE_IRRIGOLD_5,
+      IRRIGOLD_6: process.env.STRIPE_PRICE_IRRIGOLD_6,
+    };
+
     const price = PRICE_MAP[model];
-    if (!price) return res.status(400).json({ error: "Modello non valido" });
+
+    if (!price) {
+      return res.status(400).json({ error: "Invalid model provided" });
+    }
 
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
@@ -39,8 +47,10 @@ export default async function handler(req, res) {
       shipping_address_collection: { allowed_countries: ["IT"] },
     });
 
-    return res.status(200).json({ url: session.url });
-  } catch (err) {
-    return res.status(500).json({ error: err?.message || err });
+    res.status(200).json({ url: session.url });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Unknown server error",
+    });
   }
 }
